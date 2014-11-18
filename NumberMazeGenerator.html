@@ -1,0 +1,287 @@
+<html>
+<head>
+<style type='text/css'>
+	table {
+		border-collapse: collapse;
+	}
+	td {
+		font-size: 12px;
+		text-align: center;
+		border: 1px solid #000000;
+	}
+	td:hover {
+		padding:0px;
+		background-color: #9999ff;
+	}
+	td.populated:hover {
+		background-color: #ff0000;
+	}
+	.current {
+		background-color: #ffff00;
+	}
+</style>
+<style type='text/css' media='print'>
+	td {
+		border: none;
+	}
+	#settings {
+		display: none;
+	}
+</style>
+<script>
+
+function init() {
+	var DPI = 72,
+		CELL_SIZE = 24,
+		UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3,
+		table = document.getElementById('grid'),
+		width = DPI*8.5,
+		height = DPI*11,
+		maxCols = Math.floor(width/CELL_SIZE),
+		maxRows = Math.floor(height/CELL_SIZE),
+		requestedColumns = parseInt(document.getElementById('columnCount').value),
+		requestedRows = parseInt(document.getElementById('rowCount').value),
+		cols, rows,
+		startCell = null,
+		currentCell = null,
+		nextCellValue = 0;
+
+	if (!isNaN(requestedColumns) && requestedColumns > 0 && requestedColumns <= maxCols)
+		cols = requestedColumns;
+	else
+		cols = maxCols;
+
+	if (!isNaN(requestedRows) && requestedRows > 0 && requestedRows <= maxRows)
+		rows = requestedRows;
+	else
+		rows = maxRows;
+
+	if (cols*rows > 1000)
+		rows = Math.floor(1000/cols);
+	width = cols*CELL_SIZE;
+	height = rows*CELL_SIZE;
+
+	table.replaceChild(document.createElement('tbody'),table.tBodies[0]);
+
+	table.style.width = width;
+	table.style.height = height;
+
+
+	var sizeStyles = 'width:%s%px;min-width:%s%px;max-width:%s%px;height:%s%px;min-height:%s%px;max-height:%s%px;'
+	sizeStyles = sizeStyles.replace(/%s%/g,CELL_SIZE);
+
+	var styleSheet = document.styleSheets[0];
+	if (styleSheet.sizeRuleIndex)
+		styleSheet.removeRule(styleSheet.sizeRuleIndex);
+	styleSheet.addRule('td', sizeStyles);
+	styleSheet.sizeRuleIndex = styleSheet.rules.length;
+
+	for (var r=0; r<rows; r++) {
+		var row = table.insertRow(-1);
+		for (var c=0; c<cols; c++) {
+			var cell = row.insertCell(-1);
+			cell.style.width = CELL_SIZE;
+			cell.style.height = CELL_SIZE;
+			cell.setAttribute('data-row',r);
+			cell.setAttribute('data-column',c);
+		}
+	}
+
+	table.onclick = function(e) {
+		var cell = e.target;
+		if (!cell.tagName || cell.tagName.toLowerCase() != 'td')
+			return;
+
+		if (cell.innerHTML)
+			rewindToCell(cell);
+		else
+			moveToCell(cell);
+	};
+
+	document.onkeydown = function(e) {
+		if (!currentCell)
+			return;
+		var row = parseInt(currentCell.getAttribute('data-row'));
+		var col = parseInt(currentCell.getAttribute('data-column'));
+
+		var newRow, newCol;
+		switch(e.keyCode) {
+			case 38: //up
+				newRow = row - 1;
+				newCol = col;
+				break;
+			case 37: //left
+				newRow = row;
+				newCol = col - 1;
+				break;
+			case 39: //right
+				newRow = row;
+				newCol = col + 1;
+				break;
+			case 40: //down
+				newRow = row + 1;
+				newCol = col;
+				break;
+			default:
+				return;
+		}
+		if (newRow < 0 || newRow > rows-1 || newCol < 0 || newCol > cols-1)
+			return false;
+
+		var cell = table.rows[newRow].cells[newCol];
+		if (cell.innerHTML)
+			return false;
+
+		moveToCell(cell);
+
+		return false;
+	};
+
+	function moveToCell(cell) {
+		if (currentCell) {
+			if (!getAdjacentCellWithValue(cell,nextCellValue-1))
+				return;
+			currentCell.className = 'populated';
+		} else
+			startCell = cell;
+		currentCell = cell;
+		cell.innerHTML = nextCellValue++;
+		cell.className = 'current';
+
+		updateGridCode();
+	}
+
+	function rewindToCell(cell) {
+		currentCell = cell;
+		currentCell.className = 'current';
+		nextCellValue = parseInt(cell.innerHTML)+1;
+
+		var nextValue = nextCellValue,
+			nextCell = getAdjacentCellWithValue(currentCell,nextValue++);
+		while(nextCell) {
+			nextCell.innerHTML = '';
+			nextCell.className = '';
+			nextCell = getAdjacentCellWithValue(nextCell,nextValue++);
+		}
+
+		updateGridCode();
+	}
+
+	function updateGridCode() {
+		document.getElementById('gridCode').value = getCodeFromGridInfo(getGridInfo());
+	}
+
+	function getAdjacentCellWithValue(cell, value) {
+		var col = parseInt(cell.getAttribute('data-column')),
+			row = parseInt(cell.getAttribute('data-row')),
+			upCell = getCellAt(col,row-1),
+			upCellValue = getCellValue(upCell),
+			downCell = getCellAt(col,row+1),
+			downCellValue = getCellValue(downCell),
+			leftCell = getCellAt(col-1,row),
+			leftCellValue = getCellValue(leftCell),
+			rightCell = getCellAt(col+1,row),
+			rightCellValue = getCellValue(rightCell);
+
+		if (upCellValue == value)
+			return upCell;
+		if (downCellValue == value)
+			return downCell;
+		if (leftCellValue == value)
+			return leftCell;
+		if (rightCellValue == value)
+			return rightCell;
+		return null;
+	}
+
+	function getCellAt(col, row) {
+		var row = table.rows[row];
+		if (row)
+			return row.cells[col];
+		return null;
+	}
+
+	function getCellValue(cell) {
+		return cell ? parseInt(cell.innerHTML) : NaN;
+	}
+
+	function getGridInfo() {
+		if (!startCell)
+			return;
+
+		var cellPos = getCellPosition(startCell),
+			info = {
+				startCol: cellPos.col,
+				startRow: cellPos.row,
+				moves: []
+			}
+
+		var nextValue = 1,
+			currentCell = startCell;
+		while(currentCell) {
+			var nextCell = getAdjacentCellWithValue(currentCell,nextValue++);
+			if (nextCell)
+				info.moves.push(getDirection(currentCell,nextCell));
+			currentCell = nextCell;
+		}
+
+		return info;
+	}
+
+	function getDirection(fromCell,toCell) {
+		var fromPos = getCellPosition(fromCell),
+			toPos = getCellPosition(toCell);
+
+		if (fromPos.col == toPos.col)
+			return (fromPos.row < toPos.row) ? DOWN : UP;
+		else
+			return (fromPos.col < toPos.col) ? RIGHT : LEFT;
+	}
+
+	function getCellPosition(cell) {
+		return {
+			col: parseInt(cell.getAttribute('data-column')),
+			row: parseInt(cell.getAttribute('data-row'))
+		}
+	}
+
+	function getCodeFromGridInfo(info) {
+		var positionCode = String.fromCharCode(info.startCol) + String.fromCharCode(info.startRow),
+			numMoves = info.moves.length,
+			numMovesCode = String.fromCharCode(numMoves >> 8) + String.fromCharCode(numMoves & 0xFF),
+			movesCode = '';
+		for (var i=0, packedInteger=0; i<info.moves.length; i++) {
+			packedInteger += info.moves[i] << ((3 - i%4)*2);
+			if (i%4 == 3 || i == info.moves.length-1) {
+				movesCode += String.fromCharCode(packedInteger);
+				packedInteger = 0;
+			}
+		}
+		return btoa(positionCode + numMovesCode + movesCode);
+	}
+
+	function getGridInfoFromCode(code) {
+
+	}
+
+	function loadGridCode() {
+		var gridCode = document.getElementById('gridCode').value;
+	}
+}
+
+</script>
+</head>
+<body>
+	<div id='settings'>
+		<label>Grid size:</label>
+		<input id='columnCount' value='25' maxlength=2 size=2 />
+		<input id='rowCount' value='25' maxlength=2 size=2 />
+		<input type='button' value='Create new grid' onclick='init()'/>
+		<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+		<label>Grid code:</label>
+		<input id='gridCode'/>
+		<input type='button' value='Load grid' onclick='loadGridCode()' />
+	</div>
+	<table id='grid'><tbody></tbody></table>
+</body>
+</html>
