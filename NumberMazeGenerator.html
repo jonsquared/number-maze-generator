@@ -31,33 +31,15 @@
 <script>
 
 function init() {
-	var DPI = 72,
-		CELL_SIZE = 24,
+	var CELL_SIZE = 24,
 		UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3,
 		table = document.getElementById('grid'),
-		width = DPI*8.5,
-		height = DPI*11,
-		maxCols = Math.floor(width/CELL_SIZE),
-		maxRows = Math.floor(height/CELL_SIZE),
-		requestedColumns = parseInt(document.getElementById('columnCount').value),
-		requestedRows = parseInt(document.getElementById('rowCount').value),
-		cols, rows,
+		cols = parseInt(document.getElementById('columnCount').value),
+		rows = parseInt(document.getElementById('rowCount').value),
 		startCell = null,
 		currentCell = null,
 		nextCellValue = 0;
 
-	if (!isNaN(requestedColumns) && requestedColumns > 0 && requestedColumns <= maxCols)
-		cols = requestedColumns;
-	else
-		cols = maxCols;
-
-	if (!isNaN(requestedRows) && requestedRows > 0 && requestedRows <= maxRows)
-		rows = requestedRows;
-	else
-		rows = maxRows;
-
-	if (cols*rows > 1000)
-		rows = Math.floor(1000/cols);
 	width = cols*CELL_SIZE;
 	height = rows*CELL_SIZE;
 
@@ -65,7 +47,6 @@ function init() {
 
 	table.style.width = width;
 	table.style.height = height;
-
 
 	var sizeStyles = 'width:%s%px;min-width:%s%px;max-width:%s%px;height:%s%px;min-height:%s%px;max-height:%s%px;'
 	sizeStyles = sizeStyles.replace(/%s%/g,CELL_SIZE);
