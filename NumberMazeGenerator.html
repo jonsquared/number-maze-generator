@@ -36,6 +36,7 @@ function init() {
 		table = document.getElementById('grid'),
 		cols = parseInt(document.getElementById('columnCount').value),
 		rows = parseInt(document.getElementById('rowCount').value),
+		SKIP_COUNT = parseInt(document.getElementById('skipCount').value),
 		startCell = null,
 		currentCell = null,
 		nextCellValue = 0;
@@ -48,8 +49,7 @@ function init() {
 	table.style.width = width;
 	table.style.height = height;
 
-	var sizeStyles = 'width:%s%px;min-width:%s%px;max-width:%s%px;height:%s%px;min-height:%s%px;max-height:%s%px;'
-	sizeStyles = sizeStyles.replace(/%s%/g,CELL_SIZE);
+	var sizeStyles = 'width:%s%px;min-width:%s%px;max-width:%s%px;height:%s%px;min-height:%s%px;max-height:%s%px;'.replace(/%s%/g,CELL_SIZE);
 
 	var styleSheet = document.styleSheets[0];
 	if (styleSheet.sizeRuleIndex)
@@ -120,13 +120,14 @@ function init() {
 
 	function moveToCell(cell) {
 		if (currentCell) {
-			if (!getAdjacentCellWithValue(cell,nextCellValue-1))
+			if (!getAdjacentCellWithValue(cell,nextCellValue-SKIP_COUNT))
 				return;
 			currentCell.className = 'populated';
 		} else
 			startCell = cell;
 		currentCell = cell;
-		cell.innerHTML = nextCellValue++;
+		cell.innerHTML = nextCellValue;
+		nextCellValue += SKIP_COUNT;
 		cell.className = 'current';
 
 		updateGridCode();
@@ -135,14 +136,15 @@ function init() {
 	function rewindToCell(cell) {
 		currentCell = cell;
 		currentCell.className = 'current';
-		nextCellValue = parseInt(cell.innerHTML)+1;
+		nextCellValue = parseInt(cell.innerHTML)+SKIP_COUNT;
 
-		var nextValue = nextCellValue,
-			nextCell = getAdjacentCellWithValue(currentCell,nextValue++);
+		var nextCell = getAdjacentCellWithValue(currentCell,nextCellValue),
+			nextValue = nextCellValue+SKIP_COUNT;
 		while(nextCell) {
 			nextCell.innerHTML = '';
 			nextCell.className = '';
-			nextCell = getAdjacentCellWithValue(nextCell,nextValue++);
+			nextCell = getAdjacentCellWithValue(nextCell,nextValue);
+			nextValue += SKIP_COUNT;
 		}
 
 		updateGridCode();
@@ -194,13 +196,15 @@ function init() {
 			info = {
 				startCol: cellPos.col,
 				startRow: cellPos.row,
+				skipCount: SKIP_COUNT,
 				moves: []
 			}
 
-		var nextValue = 1,
+		var nextValue = SKIP_COUNT,
 			currentCell = startCell;
 		while(currentCell) {
-			var nextCell = getAdjacentCellWithValue(currentCell,nextValue++);
+			var nextCell = getAdjacentCellWithValue(currentCell,nextValue);
+			nextValue += SKIP_COUNT;
 			if (nextCell)
 				info.moves.push(getDirection(currentCell,nextCell));
 			currentCell = nextCell;
@@ -228,6 +232,7 @@ function init() {
 
 	function getCodeFromGridInfo(info) {
 		var positionCode = String.fromCharCode(info.startCol) + String.fromCharCode(info.startRow),
+			skipCountCode = String.fromCharCode(info.skipCount),
 			numMoves = info.moves.length,
 			numMovesCode = String.fromCharCode(numMoves >> 8) + String.fromCharCode(numMoves & 0xFF),
 			movesCode = '';
@@ -238,7 +243,7 @@ function init() {
 				packedInteger = 0;
 			}
 		}
-		return btoa(positionCode + numMovesCode + movesCode);
+		return btoa(positionCode + skipCountCode + numMovesCode + movesCode);
 	}
 
 	function getGridInfoFromCode(code) {
@@ -257,6 +262,8 @@ function init() {
 		<label>Grid size:</label>
 		<input id='columnCount' value='25' maxlength=2 size=2 />
 		<input id='rowCount' value='25' maxlength=2 size=2 />
+		<label>Skip count:</label>
+		<input id='skipCount' value='1' maxlength=2 size=2 />
 		<input type='button' value='Create new grid' onclick='init()'/>
 		<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
 		<label>Grid code:</label>
