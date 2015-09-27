@@ -4,10 +4,13 @@
 	table {
 		border-collapse: collapse;
 	}
+	tbody {
+		border: 1px solid #000000;
+	}
 	td {
 		font-size: 12px;
 		text-align: center;
-		border: 1px solid #000000;
+		border: 1px solid #AAAAAA;
 	}
 	td:hover {
 		padding:0px;
@@ -19,9 +22,21 @@
 	.current {
 		background-color: #ffff00;
 	}
+	.topWall {
+		border-top-color: #000000;
+	}
+	.rightWall {
+		border-right-color: #000000;
+	}
+	.bottomWall {
+		border-bottom-color: #000000;
+	}
+	.leftWall {
+		border-left-color: #000000;
+	}
 </style>
 <style type='text/css' media='print'>
-	td {
+	td, tbody {
 		border: none;
 	}
 	#settings {
@@ -38,8 +53,7 @@ function init() {
 		rows = parseInt(document.getElementById('rowCount').value),
 		SKIP_COUNT = parseInt(document.getElementById('skipCount').value),
 		startCell = null,
-		currentCell = null,
-		nextCellValue = 0;
+		currentCell = null;
 
 	width = cols*CELL_SIZE;
 	height = rows*CELL_SIZE;
@@ -68,20 +82,34 @@ function init() {
 		}
 	}
 
-	table.onclick = function(e) {
+	function getCellFromEvent(e) {
 		var cell = e.target;
 		if (!cell.tagName || cell.tagName.toLowerCase() != 'td')
-			return;
+			return null;
+		return cell;
+	}
 
-		if (cell.innerHTML)
-			rewindToCell(cell);
-		else
+	table.onclick = function(e) {
+		var cell = getCellFromEvent(e);
+		if (cell)
 			moveToCell(cell);
 	};
+
+	table.ondblclick = function(e) {
+		var cell = getCellFromEvent(e);
+		if (cell)
+			rewindToCell(cell);
+	}
 
 	document.onkeydown = function(e) {
 		if (!currentCell)
 			return;
+
+		if (e.keyCode == 8) { //backspace
+			rewindToCell(currentCell);
+			return;
+		}
+
 		var row = parseInt(currentCell.getAttribute('data-row'));
 		var col = parseInt(currentCell.getAttribute('data-column'));
 
@@ -110,52 +138,111 @@ function init() {
 			return false;
 
 		var cell = table.rows[newRow].cells[newCol];
-		if (cell.innerHTML)
-			return false;
-
 		moveToCell(cell);
 
 		return false;
 	};
 
 	function moveToCell(cell) {
-		if (currentCell) {
-			if (!getAdjacentCellWithValue(cell,nextCellValue-SKIP_COUNT))
-				return;
-			currentCell.className = 'populated';
-		} else
-			startCell = cell;
-		currentCell = cell;
-		cell.innerHTML = nextCellValue;
-		nextCellValue += SKIP_COUNT;
-		cell.className = 'current';
+		if (cell === currentCell)
+			return;
 
-		updateGridCode();
+		var cellValue = getCellValue(cell);
+		if (isNaN(cellValue)) {
+			var nextCellValue;
+			if (currentCell) {
+				if (!cellsAreAdjacent(cell, currentCell))
+					return;
+				nextCellValue = getCellValue(currentCell) + SKIP_COUNT;
+			} else {
+				startCell = cell;
+				nextCellValue = 0;
+			}
+			cell.innerHTML = nextCellValue;
+		}
+
+		var prevCell = currentCell;
+		currentCell = cell;
+
+		if (prevCell)
+			updateCellStyles(prevCell);
+		updateCellStyles(cell);
+	}
+
+	function updateCellStyles(cell) {
+		var pos = getCellPosition(cell),
+			value = getCellValue(cell);
+
+		if (isNaN(value))
+			cell.className = '';
+		else
+			cell.className = cell === currentCell ? 'current' : 'populated';
+
+		var adjacentCells = {
+			top: getCellAt(pos.col, pos.row-1),
+			right: getCellAt(pos.col+1, pos.row),
+			bottom: getCellAt(pos.col, pos.row+1),
+			left: getCellAt(pos.col-1, pos.row)
+		}
+
+		for (var side in adjacentCells) {
+			var adjCell = adjacentCells[side];
+			if (adjCell)
+				updateWallBetweenCells(cell, adjCell);
+			else
+				cell.className += ' '+side+'Wall';
+		}
+	}
+
+	function updateWallBetweenCells(cell1, cell2) {
+		var dir = getDirection(cell1, cell2),
+			visible = Math.abs(getCellValue(cell1) - getCellValue(cell2)) != SKIP_COUNT,
+			class1, class2;
+		switch (dir) {
+			case UP: class1 = 'topWall'; class2 = 'bottomWall'; break;
+			case RIGHT: class1 = 'rightWall'; class2 = 'leftWall'; break;
+			case DOWN: class1 = 'bottomWall'; class2 = 'topWall'; break;
+			case LEFT: class1 = 'leftWall'; class2 = 'rightWall'; break;
+		}
+		if (visible) {
+			if (cell1.className.indexOf(class1) == -1)
+				cell1.className += ' '+class1;
+			if (cell2.className.indexOf(class2) == -1)
+				cell2.className += ' '+class2;
+		} else {
+			cell1.className = cell1.className.replace(class1, '');
+			cell2.className = cell2.className.replace(class2, '');
+		}
 	}
 
 	function rewindToCell(cell) {
 		currentCell = cell;
-		currentCell.className = 'current';
-		nextCellValue = parseInt(cell.innerHTML)+SKIP_COUNT;
 
-		var nextCell = getAdjacentCellWithValue(currentCell,nextCellValue),
-			nextValue = nextCellValue+SKIP_COUNT;
-		while(nextCell) {
-			nextCell.innerHTML = '';
-			nextCell.className = '';
-			nextCell = getAdjacentCellWithValue(nextCell,nextValue);
-			nextValue += SKIP_COUNT;
+		var nextCells = getNextCellsInPath(currentCell);
+		for (var i=0; i<nextCells.length; i++)
+			clearPath(nextCells[i]);
+
+		updateCellStyles(currentCell);
+	}
+
+	function clearPath(startCell) {
+		var cell = startCell,
+			nextCells = getNextCellsInPath(cell);
+		while(nextCells.length < 2) {
+			cell.innerHTML = '';
+			cell.className = '';
+			cell = nextCells[0];
+			if (!cell)
+				break;
+			nextCells = getNextCellsInPath(cell);
 		}
-
-		updateGridCode();
+		for (var i=0; i<nextCells.length; i++)
+			clearPath(nextCells[i]);
 	}
 
-	function updateGridCode() {
-		document.getElementById('gridCode').value = getCodeFromGridInfo(getGridInfo());
-	}
-
-	function getAdjacentCellWithValue(cell, value) {
-		var col = parseInt(cell.getAttribute('data-column')),
+	function getNextCellsInPath(cell) {
+		var nextValue = getCellValue(cell) + SKIP_COUNT,
+		    col = parseInt(cell.getAttribute('data-column')),
 			row = parseInt(cell.getAttribute('data-row')),
 			upCell = getCellAt(col,row-1),
 			upCellValue = getCellValue(upCell),
@@ -164,17 +251,18 @@ function init() {
 			leftCell = getCellAt(col-1,row),
 			leftCellValue = getCellValue(leftCell),
 			rightCell = getCellAt(col+1,row),
-			rightCellValue = getCellValue(rightCell);
+			rightCellValue = getCellValue(rightCell),
+			nextCells = [];
 
-		if (upCellValue == value)
-			return upCell;
-		if (downCellValue == value)
-			return downCell;
-		if (leftCellValue == value)
-			return leftCell;
-		if (rightCellValue == value)
-			return rightCell;
-		return null;
+		if (upCellValue == nextValue)
+			nextCells.push(upCell);
+		if (downCellValue == nextValue)
+			nextCells.push(downCell);
+		if (leftCellValue == nextValue)
+			nextCells.push(leftCell);
+		if (rightCellValue == nextValue)
+			nextCells.push(rightCell);
+		return nextCells;
 	}
 
 	function getCellAt(col, row) {
@@ -186,6 +274,12 @@ function init() {
 
 	function getCellValue(cell) {
 		return cell ? parseInt(cell.innerHTML) : NaN;
+	}
+
+	function createUrl() {
+		var code = getCodeFromGridInfo(getGridInfo()),
+			url = window.location.href + "?code=" + code;
+		window.alert(url);
 	}
 
 	function getGridInfo() {
@@ -211,6 +305,13 @@ function init() {
 		}
 
 		return info;
+	}
+
+	function cellsAreAdjacent(cell1, cell2) {
+		var cellPos1 = getCellPosition(cell1),
+			cellPos2 = getCellPosition(cell2);
+		return cellPos1.col == cellPos2.col && Math.abs(cellPos1.row - cellPos2.row) == 1 ||
+			   cellPos1.row == cellPos2.row && Math.abs(cellPos1.col - cellPos2.col) == 1;
 	}
 
 	function getDirection(fromCell,toCell) {
@@ -266,9 +367,7 @@ function init() {
 		<input id='skipCount' value='1' maxlength=2 size=2 />
 		<input type='button' value='Create new grid' onclick='init()'/>
 		<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
-		<label>Grid code:</label>
-		<input id='gridCode'/>
-		<input type='button' value='Load grid' onclick='loadGridCode()' />
+		<input type='button' value='Generate URL' onclick='createUrl()' />
 	</div>
 	<table id='grid'><tbody></tbody></table>
 </body>
