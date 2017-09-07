@@ -1,6 +1,16 @@
 <html>
 <head>
 <style type='text/css'>
+	.roman {
+		font-size: 10px;
+		font-family: "Arial Narrow", Arial, sans-serif;
+		line-height: 1;
+	}
+
+	.arabic {
+		font-size: 12px;
+	}
+
 	table {
 		border-collapse: collapse;
 	}
@@ -8,7 +18,6 @@
 		border: 1px solid #000000;
 	}
 	td {
-		font-size: 12px;
 		text-align: center;
 		border: 1px solid #AAAAAA;
 	}
@@ -46,24 +55,29 @@
 <script>
 
 function init() {
-	var CELL_SIZE = 24,
+	var CELL_WIDTH = 24,
+		CELL_HEIGHT = 24,
 		UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3,
 		table = document.getElementById('grid'),
 		cols = parseInt(document.getElementById('columnCount').value),
 		rows = parseInt(document.getElementById('rowCount').value),
 		SKIP_COUNT = parseInt(document.getElementById('skipCount').value),
+		numerals = document.getElementById('numerals').value,
 		startCell = null,
 		currentCell = null;
 
-	width = cols*CELL_SIZE;
-	height = rows*CELL_SIZE;
+	if (numerals == "Roman")
+		CELL_WIDTH *= 2;
+	width = cols*CELL_WIDTH;
+	height = rows*CELL_HEIGHT;
 
 	table.replaceChild(document.createElement('tbody'),table.tBodies[0]);
 
+	table.className = numerals.toLowerCase();
 	table.style.width = width;
 	table.style.height = height;
 
-	var sizeStyles = 'width:%s%px;min-width:%s%px;max-width:%s%px;height:%s%px;min-height:%s%px;max-height:%s%px;'.replace(/%s%/g,CELL_SIZE);
+	var sizeStyles = 'width:%w%px;min-width:%w%px;max-width:%w%px;height:%h%px;min-height:%h%px;max-height:%h%px;'.replace(/%w%/g,CELL_WIDTH).replace(/%h%/g,CELL_HEIGHT);
 
 	var styleSheet = document.styleSheets[0];
 	if (styleSheet.sizeRuleIndex)
@@ -75,8 +89,8 @@ function init() {
 		var row = table.insertRow(-1);
 		for (var c=0; c<cols; c++) {
 			var cell = row.insertCell(-1);
-			cell.style.width = CELL_SIZE;
-			cell.style.height = CELL_SIZE;
+			cell.style.width = CELL_WIDTH;
+			cell.style.height = CELL_HEIGHT;
 			cell.setAttribute('data-row',r);
 			cell.setAttribute('data-column',c);
 		}
@@ -158,7 +172,7 @@ function init() {
 				startCell = cell;
 				nextCellValue = 0;
 			}
-			cell.innerHTML = nextCellValue;
+			setCellValue(cell, nextCellValue);
 		}
 
 		var prevCell = currentCell;
@@ -229,7 +243,7 @@ function init() {
 		var cell = startCell,
 			nextCells = getNextCellsInPath(cell);
 		while(nextCells.length < 2) {
-			cell.innerHTML = '';
+			setCellValue(cell, null);
 			cell.className = '';
 			cell = nextCells[0];
 			if (!cell)
@@ -273,7 +287,46 @@ function init() {
 	}
 
 	function getCellValue(cell) {
-		return cell ? parseInt(cell.innerHTML) : NaN;
+		return cell ? parseInt(cell.getAttribute('data-value')) : NaN;
+	}
+
+	function setCellValue(cell, value) {
+		if(isNaN(value)) {
+			cell.setAttribute('data-value', '');
+			cell.innerHTML = '';
+		}
+		cell.setAttribute('data-value', value);
+		switch(numerals) {
+			case 'Arabic': cell.innerHTML = value; break;
+			case 'Roman': cell.innerHTML = getRomanNumeral(value); break;
+		}
+	}
+
+	var roman = ["M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"],
+		decimal = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+	function getRomanNumeral(value) {
+		if (value == 0)
+			return 'nulla';
+		if (value >= 4000)
+			return value;
+		var romanNumeral = "";
+		for (var i=0; i<roman.length; i++) {
+			while (value >= decimal[i]) {
+				value -= decimal[i];
+				romanNumeral += roman[i];
+			}
+		}
+		if (romanNumeral.length > 7) {
+			if (romanNumeral.lastIndexOf('L') != -1)
+				romanNumeral = romanNumeral.replace(/L([^L]*)/,"L<br/>$1");
+			else if (romanNumeral.lastIndexOf('C') != -1)
+				romanNumeral = romanNumeral.replace(/C([^C]*)/,"C<br/>$1");
+			else if (romanNumeral.lastIndexOf('D') != -1)
+				romanNumeral = romanNumeral.replace(/D([^D]*)/,"D<br/>$1");
+			else if (romanNumeral.lastIndexOf('M') != -1)
+				romanNumeral = romanNumeral.replace(/M([^M]*)/,"M<br/>$1");
+		}
+		return romanNumeral;
 	}
 
 	function createUrl() {
@@ -365,6 +418,11 @@ function init() {
 		<input id='rowCount' value='25' maxlength=2 size=2 />
 		<label>Skip count:</label>
 		<input id='skipCount' value='1' maxlength=2 size=2 />
+		<label>Numerals:</label>
+		<select id='numerals'>
+			<option>Arabic</option>
+			<option>Roman</option>
+		</select>
 		<input type='button' value='Create new grid' onclick='init()'/>
 		<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
 		<input type='button' value='Generate URL' onclick='createUrl()' />
